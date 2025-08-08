@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Generador de Matriz TF-IDF & Transcripción</title>
+  <style>
+    /* ─── Reset y contenedor ─────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f3f5f9;
+      color: #333;
+      padding: 1rem;
+    }
+    .container {
+      max-width: 90%;
+      width: 800px;
+      margin: auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+      padding: 2rem;
+    }
+    h1, h2 { margin-bottom: 1rem; color: #222; }
+    input[type="file"] { display: block; margin: 1rem 0; width: 100%; }
+    /* ─── Botones ───────────────────────────────────────────────────── */
+    .btn {
+      padding: .65rem 1.2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .2s ease;
+      margin-right: .5rem;
+    }
+    .btn-primary { background: #007BFF; color: #fff; }
+    .btn-primary:disabled { background: #7aaefc; cursor: default; }
+    .btn-clear { background: #dc3545; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #0056b3; }
+    .btn-clear:hover { background: #c82333; }
+    /* ─── Indicadores (estáticos) ─────────────────────────────────── */
+    .indicator {
+      display: none;
+      align-items: center;
+      margin: .75rem 0;
+      font-weight: bold;
+    }
+    .indicator.loader::before,
+    .indicator.status::before {
+      display: inline-block;
+      margin-right: .5rem;
+    }
+    .indicator.loader {
+      color: #007BFF;
+    }
+    .indicator.loader::before {
+      content: '';
+      width: 1rem; height: 1rem;
+      border: 3px solid #007BFF;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .indicator.status {
+      color: #28a745;
+    }
+    .indicator.status::before {
+      content: '✔';
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* ─── Resultados ─────────────────────────────────────────────────── */
+    pre {
+      margin-top: .5rem;
+      padding: 1rem;
+      background: #f0f0f0;
+      border-radius: 6px;
+      overflow-x: auto;
+      max-height: 300px;
+      width: 100%;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      border: 1px solid #ccc;
+      padding: .5rem;
+      text-align: center;
+    }
+    hr { margin: 2rem 0; border: none; border-top: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Generar Matriz TF-IDF</h1>
+    <input type="file" id="csvFile" accept=".csv" />
+
+    <button class="btn btn-primary" id="btnProcesar">Procesar Archivo</button>
+    <button class="btn btn-clear" id="btnClearTabla">Borrar Resultados</button>
+
+    <div class="indicator loader" id="loaderCSV">Procesando…</div>
+    <div class="indicator status" id="statusCSV">Completado</div>
+
+    <pre id="resultado">Aquí aparecerá la matriz TF-IDF…</pre>
+
+    <hr>
+
+    <h2>Transcribir Audio</h2>
+    <input type="file" id="audioFile" accept=".mp3,.wav,.m4a,.ogg" />
+
+    <button class="btn btn-primary" id="btnTranscribir">Transcribir</button>
+    <button class="btn btn-clear" id="btnClearTrans">Borrar Transcripción</button>
+
+    <div class="indicator loader" id="loaderAUD">Procesando…</div>
+    <div class="indicator status" id="statusAUD">Completado</div>
+
+    <pre id="resultadoTranscripcion">Aquí aparecerá la transcripción…</pre>
+  </div>
+
+  <script>
+    // Helpers
+    function show(el) { el.style.display = 'flex'; }
+    function hide(el) { el.style.display = 'none'; }
+    function flashStatus(loaderEl, statusEl) {
+      hide(loaderEl);
+      show(statusEl);
+      setTimeout(() => hide(statusEl), 1500);
+    }
+
+    // ─── CSV ─────────────────────────────────────────────────────────
+    const btnP = document.getElementById('btnProcesar'),
+          btnC = document.getElementById('btnClearTabla'),
+          loaderC = document.getElementById('loaderCSV'),
+          statusC = document.getElementById('statusCSV'),
+          outC = document.getElementById('resultado');
+
+    btnP.addEventListener('click', () => {
+      const file = document.getElementById('csvFile').files[0];
+      if (!file) return alert('Selecciona un CSV.');
+
+      btnP.disabled = true;
+      show(loaderC);
+
+      const fd = new FormData();
+      fd.append('file', file);
+
+      fetch('/procesar', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          btnP.disabled = false;
+          if (data.error) {
+            outC.innerHTML = `<div style="color:#dc3545;">❌ ${data.error}</div>`;
+            hide(loaderC);
+          } else {
+            renderTabla(data);
+            flashStatus(loaderC, statusC);
+          }
+        })
+        .catch(err => {
+          btnP.disabled = false;
+          hide(loaderC);
+          alert('Error al procesar CSV');
+          console.error(err);
+        });
+    });
+
+    btnC.addEventListener('click', () => {
+      outC.textContent = '';
+    });
+
+    function renderTabla(data) {
+      if (!data.length) return outC.textContent = 'No hay datos.';
+      const cols = Object.keys(data[0]);
+      let html = `<table>
+        <thead><tr><th>Op.</th>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+        <tbody>${
+          data.map((r,i)=>
+            `<tr><td><strong>${i+1}</strong></td>${
+              cols.map(c=>`<td>${parseFloat(r[c]).toFixed(3)}</td>`).join('')
+            }</tr>`
+          ).join('')
+        }</tbody>
+      </table>
+      <p><strong>Total:</strong> ${data.length}×${cols.length}</p>`;
+      outC.innerHTML = html;
+    }
+
+    // ─── Audio ────────────────────────────────────────────────────────
+    const btnT = document.getElementById('btnTranscribir'),
+          btnCT = document.getElementById('btnClearTrans'),
+          loaderA = document.getElementById('loaderAUD'),
+          statusA = document.getElementById('statusAUD'),
+          outA = document.getElementById('resultadoTranscripcion');
+
+    btnT.addEventListener('click', () => {
+      const file = document.getElementById('audioFile').files[0];
+      if (!file) return alert('Selecciona un audio.');
+
+      btnT.disabled = true;
+      show(loaderA);
+
+      const fd = new FormData();
+      fd.append('audio', file);
+
+      fetch('/transcribir', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          btnT.disabled = false;
+          if (data.error) {
+            outA.innerHTML = `<div style="color:#dc3545;">❌ ${data.error}</div>`;
+            hide(loaderA);
+          } else {
+            outA.textContent = data.transcripcion;
+            flashStatus(loaderA, statusA);
+          }
+        })
+        .catch(err => {
+          btnT.disabled = false;
+          hide(loaderA);
+          alert('Error al transcribir');
+          console.error(err);
+        });
+    });
+
+    btnCT.addEventListener('click', () => {
+      outA.textContent = '';
+    });
+  </script>
+</body>
+</html>

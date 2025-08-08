@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Análisis Automatizado CREA - Chilpancingo</title>
+  <link rel="stylesheet" href="./static/css/styles.css" >
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎓 Análisis Automatizado CREA</h1>
+      <div class="subtitle">Centro Regional de Educación Artística - Chilpancingo, Guerrero</div>
+    </div>
+
+    <!-- Estado del Sistema -->
+    <div class="system-status" id="systemStatus">
+      <div class="status-card">
+        <div class="status-title">Estado del Sistema</div>
+        <div class="status-value" id="systemHealth">Verificando...</div>
+      </div>
+      <div class="status-card">
+        <div class="status-title">Modelo spaCy</div>
+        <div class="status-value" id="spacyStatus">Verificando...</div>
+      </div>
+      <div class="status-card">
+        <div class="status-title">Whisper.cpp</div>
+        <div class="status-value" id="whisperStatus">Verificando...</div>
+      </div>
+      <div class="status-card">
+        <div class="status-title">Trabajos Activos</div>
+        <div class="status-value" id="activeJobs">0</div>
+      </div>
+    </div>
+
+    <!-- Sección CSV -->
+    <div class="section">
+      <h2>
+        <span class="section-icon">📊</span>
+        Análisis de Sentimientos - Matriz TF-IDF
+      </h2>
+      
+      <div class="file-input-container">
+        <input type="file" id="csvFile" class="file-input" accept=".csv" />
+        <label for="csvFile" class="file-input-label">
+          📁 Seleccionar archivo CSV
+        </label>
+        <div class="file-info" id="csvFileInfo"></div>
+      </div>
+
+      <div class="audio-controls">
+        <button class="btn btn-primary" id="btnProcesar">
+          <span>🔄 Procesar Archivo</span>
+        </button>
+        <button class="btn btn-secondary" id="btnClearTabla">
+          🗑️ Limpiar Resultados
+        </button>
+        <button class="btn btn-secondary" id="btnExportCSV" style="display: none;">
+          💾 Exportar CSV
+        </button>
+      </div>
+
+      <div class="status-indicator loading" id="loaderCSV">
+        <div class="spinner"></div>
+        Procesando archivo CSV...
+      </div>
+      
+      <div class="status-indicator success" id="statusCSV">
+        ✅ Procesamiento completado
+      </div>
+
+      <div class="result-container empty" id="resultado">
+        Aquí aparecerá la matriz TF-IDF cuando proceses un archivo CSV...
+      </div>
+    </div>
+
+    <!-- Sección Audio -->
+    <div class="section">
+      <h2>
+        <span class="section-icon">🎤</span>
+        Transcripción de Audio
+      </h2>
+      
+     <div class="file-input-container">
+      <input type="file" id="audioFile" class="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac" />
+      <label for="audioFile" class="file-input-label">
+        🎵 Seleccionar archivo de audio
+      </label>
+      <div class="file-info" id="audioFileInfo">
+        Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC (MÁX. 45MB)
+      </div>
+      <!-- Mensaje de error para tamaño -->
+      <div class="file-input-error" id="audioFileError"></div>
+    </div>
+
+      <div class="audio-controls">
+        <button class="btn btn-primary" id="btnTranscribir">
+          🎯 Iniciar Transcripción
+        </button>
+        <button class="btn btn-secondary" id="btnClearTrans">
+          🗑️ Limpiar Transcripción
+        </button>
+        <button class="btn btn-secondary" id="btnListarArchivos">
+          📂 Ver Archivos
+        </button>
+      </div>
+
+      <div class="status-indicator loading" id="loaderAUD">
+        <div class="spinner"></div>
+        <span id="transcriptionStatus">Procesando audio...</span>
+      </div>
+      
+      <div class="status-indicator success" id="statusAUD">
+        ✅ Transcripción completada
+      </div>
+
+      <div class="status-indicator error" id="errorAUD">
+        ❌ Error en la transcripción
+      </div>
+      
+      <div class="progress-container" id="progressContainer">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="progress-text" id="progressText"></div>
+
+      <div class="result-container empty" id="resultadoTranscripcion">
+        Aquí aparecerá la transcripción cuando proceses un archivo de audio...
+      </div>
+    </div>
+
+    <!-- Sección Archivos -->
+    <div class="section" id="sectionArchivos" style="display: none;">
+      <h2>
+        <span class="section-icon">📁</span>
+        Archivos de Transcripción
+      </h2>
+      
+      <div class="file-list" id="fileList">
+        <div style="padding: 2rem; text-align: center; color: #7f8c8d;">
+          Cargando lista de archivos...
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="./static/js/script.js"></script>
+</body>
+</html>
