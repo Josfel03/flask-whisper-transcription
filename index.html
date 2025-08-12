@@ -9,11 +9,18 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🎓 Análisis Automatizado CREA</h1>
-      <div class="subtitle">Centro Regional de Educación Artística - Chilpancingo, Guerrero</div>
+      <h1>🎓 Análisis Automatizado de Sentimientos</h1>
+      <div class="subtitle">by JFML</div>
     </div>
 
-    <!-- Estado del Sistema -->
+    <!-- Sistema de pestañas SPA -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="transcripcion">🎤 Transcripción de Audio</button>
+      <button class="tab-btn" data-tab="sentimientos">🧠 Análisis de Sentimientos</button>
+      <button class="tab-btn" data-tab="evaluacion">📊 Evaluación y Métricas ML</button>
+    </div>
+
+    <!-- Estado del Sistema (común a todas las pestañas) -->
     <div class="system-status" id="systemStatus">
       <div class="status-card">
         <div class="status-title">Estado del Sistema</div>
@@ -33,115 +40,168 @@
       </div>
     </div>
 
-    <!-- Sección CSV -->
-    <div class="section">
-      <h2>
-        <span class="section-icon">📊</span>
-        Análisis de Sentimientos - Matriz TF-IDF
-      </h2>
-      
-      <div class="file-input-container">
-        <input type="file" id="csvFile" class="file-input" accept=".csv" />
-        <label for="csvFile" class="file-input-label">
-          📁 Seleccionar archivo CSV
-        </label>
-        <div class="file-info" id="csvFileInfo"></div>
-      </div>
+    <!-- PESTAÑA 1: TRANSCRIPCIÓN DE AUDIO -->
+    <div class="tab-content" id="tab-transcripcion">
+      <div class="section">
+        <h2>
+          <span class="section-icon">🎤</span>
+          Transcripción de Audio
+        </h2>
+        <div class="file-input-container">
+          <input type="file" id="trans_audioFile" class="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac,.opus" />
+          <label for="trans_audioFile" class="file-input-label">
+            🎵 Seleccionar archivo de audio
+          </label>
+          <div class="file-info" id="trans_audioFileInfo">
+            Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS (MÁX. 45MB)
+          </div>
+          <div class="file-input-error" id="trans_audioFileError"></div>
+        </div>
 
-      <div class="audio-controls">
-        <button class="btn btn-primary" id="btnProcesar">
-          <span>🔄 Procesar Archivo</span>
-        </button>
-        <button class="btn btn-secondary" id="btnClearTabla">
-          🗑️ Limpiar Resultados
-        </button>
-        <button class="btn btn-secondary" id="btnExportCSV" style="display: none;">
-          💾 Exportar CSV
-        </button>
-      </div>
+        <div class="audio-controls">
+          <button class="btn btn-primary" id="trans_btnTranscribir">
+            🎯 Iniciar Transcripción
+          </button>
+          <button class="btn btn-secondary" id="trans_btnClearTrans">
+            🗑️ Limpiar Transcripción
+          </button>
+          <button class="btn btn-secondary" id="trans_btnListarArchivos">
+            📂 Ver Archivos
+          </button>
+        </div>
 
-      <div class="status-indicator loading" id="loaderCSV">
-        <div class="spinner"></div>
-        Procesando archivo CSV...
-      </div>
-      
-      <div class="status-indicator success" id="statusCSV">
-        ✅ Procesamiento completado
-      </div>
+        <div class="status-indicator loading" id="trans_loaderAUD">
+          <div class="spinner"></div>
+          <span id="trans_transcriptionStatus">Procesando audio...</span>
+        </div>
 
-      <div class="result-container empty" id="resultado">
-        Aquí aparecerá la matriz TF-IDF cuando proceses un archivo CSV...
+        <div class="status-indicator success" id="trans_statusAUD">
+          ✅ Transcripción completada
+        </div>
+
+        <div class="status-indicator error" id="trans_errorAUD">
+          ❌ Error en la transcripción
+        </div>
+
+        <div class="progress-container" id="trans_progressContainer">
+          <div class="progress-bar" id="trans_progressBar"></div>
+        </div>
+        <div class="progress-text" id="trans_progressText"></div>
+
+        <div class="result-container empty" id="trans_resultadoTranscripcion">
+          Aquí aparecerá la transcripción cuando proceses un archivo de audio...
+        </div>
+      </div>
+      <!-- Sección Archivos (solo en pestaña transcripción) -->
+      <div class="section" id="trans_sectionArchivos">
+        <h2>
+          <span class="section-icon">📁</span>
+          Archivos de Transcripción
+        </h2>
+        <div class="file-list" id="trans_fileList">
+          <div style="padding: 2rem; text-align: center; color: #7f8c8d;">
+            Cargando lista de archivos...
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Sección Audio -->
-    <div class="section">
-      <h2>
-        <span class="section-icon">🎤</span>
-        Transcripción de Audio
-      </h2>
-      
-     <div class="file-input-container">
-      <input type="file" id="audioFile" class="file-input" accept=".mp3,.wav,.m4a,.ogg,.flac,.aac" />
-      <label for="audioFile" class="file-input-label">
-        🎵 Seleccionar archivo de audio
-      </label>
-      <div class="file-info" id="audioFileInfo">
-        Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC (MÁX. 45MB)
-      </div>
-      <!-- Mensaje de error para tamaño -->
-      <div class="file-input-error" id="audioFileError"></div>
-    </div>
-
-      <div class="audio-controls">
-        <button class="btn btn-primary" id="btnTranscribir">
-          🎯 Iniciar Transcripción
-        </button>
-        <button class="btn btn-secondary" id="btnClearTrans">
-          🗑️ Limpiar Transcripción
-        </button>
-        <button class="btn btn-secondary" id="btnListarArchivos">
-          📂 Ver Archivos
-        </button>
-      </div>
-
-      <div class="status-indicator loading" id="loaderAUD">
-        <div class="spinner"></div>
-        <span id="transcriptionStatus">Procesando audio...</span>
-      </div>
-      
-      <div class="status-indicator success" id="statusAUD">
-        ✅ Transcripción completada
-      </div>
-
-      <div class="status-indicator error" id="errorAUD">
-        ❌ Error en la transcripción
-      </div>
-      
-      <div class="progress-container" id="progressContainer">
-        <div class="progress-bar" id="progressBar"></div>
-      </div>
-      <div class="progress-text" id="progressText"></div>
-
-      <div class="result-container empty" id="resultadoTranscripcion">
-        Aquí aparecerá la transcripción cuando proceses un archivo de audio...
+    <!-- PESTAÑA 2: ANÁLISIS DE SENTIMIENTOS -->
+    <div class="tab-content" id="tab-sentimientos" style="display:none;">
+      <div class="section">
+        <h2>
+          <span class="section-icon">🧠</span>
+          Análisis de Sentimientos BERT
+        </h2>
+        <div class="file-input-container">
+          <input type="file" id="sent_csvFile" accept=".csv" />
+          <label for="sent_csvFile" class="file-input-label">
+            📁 Seleccionar archivo CSV
+          </label>
+          <div class="file-info" id="sent_csvFileInfo"></div>
+        </div>
+        <div class="audio-controls">
+          <button class="btn btn-primary" id="sent_btnProcesar">
+            🔍 Analizar Sentimientos
+          </button>
+          <button class="btn btn-secondary" id="sent_btnClear">
+            🗑️ Limpiar Resultados
+          </button>
+          <button class="btn btn-secondary" id="sent_btnExport" style="display: none;">
+            💾 Exportar Resultados
+          </button>
+        </div>
+        <div class="status-indicator loading" id="sent_loader">
+          <div class="spinner"></div>
+          Analizando archivos...
+        </div>
+        <div class="status-indicator success" id="sent_status">
+          ✅ Análisis completado
+        </div>
+        <div class="result-container empty" id="sent_resultado">
+          Aquí aparecerán los resultados del análisis de sentimientos...
+        </div>
+        <div class="charts-container" id="sent_charts" style="display:none;">
+          <canvas id="sent_barChart"></canvas>
+          <canvas id="sent_pieChart"></canvas>
+        </div>
       </div>
     </div>
 
-    <!-- Sección Archivos -->
-    <div class="section" id="sectionArchivos" style="display: none;">
-      <h2>
-        <span class="section-icon">📁</span>
-        Archivos de Transcripción
-      </h2>
-      
-      <div class="file-list" id="fileList">
-        <div style="padding: 2rem; text-align: center; color: #7f8c8d;">
-          Cargando lista de archivos...
+    <!-- PESTAÑA 3: EVALUACIÓN Y MÉTRICAS ML -->
+    <div class="tab-content" id="tab-evaluacion" style="display:none;">
+      <div class="section">
+        <h2>
+          <span class="section-icon">📊</span>
+          Evaluación y Métricas ML
+        </h2>
+        <div class="audio-controls">
+          <button class="btn btn-primary" id="eval_btnCargarMetrics">
+            📈 Cargar Métricas
+          </button>
+          <button class="btn btn-secondary" id="eval_btnExportMetrics" style="display: none;">
+            💾 Exportar Reporte
+          </button>
+        </div>
+        <div class="status-indicator loading" id="eval_loaderML">
+          <div class="spinner"></div>
+          Calculando métricas...
+        </div>
+        <div class="status-indicator success" id="eval_statusML">
+          ✅ Métricas generadas
+        </div>
+        <div class="result-container empty" id="eval_resultadoMetrics">
+          Aquí aparecerán los resultados de métricas y evaluaciones ML...
+        </div>
+        <div class="charts-container" id="eval_chartsMetrics" style="display:none;">
+          <canvas id="eval_confusionMatrix"></canvas>
+          <canvas id="eval_rocCurve"></canvas>
+          <canvas id="eval_tfidfHeatmap"></canvas>
         </div>
       </div>
     </div>
   </div>
   <script src="./static/js/script.js"></script>
+  <script>
+    // tabs.js básico
+    document.addEventListener('DOMContentLoaded', function() {
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      const tabContents = {
+        transcripcion: document.getElementById('tab-transcripcion'),
+        sentimientos: document.getElementById('tab-sentimientos'),
+        evaluacion: document.getElementById('tab-evaluacion')
+      };
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          Object.keys(tabContents).forEach(key => tabContents[key].style.display = 'none');
+          tabContents[this.dataset.tab].style.display = '';
+        });
+      });
+      // Mostrar por defecto la pestaña de transcripción
+      tabBtns[0].click();
+    });
+  </script>
 </body>
 </html>
