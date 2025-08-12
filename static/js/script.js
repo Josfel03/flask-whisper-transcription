@@ -31,32 +31,41 @@ const elements = {
   spacyStatus: document.getElementById('spacyStatus'),
   whisperStatus: document.getElementById('whisperStatus'),
   activeJobs: document.getElementById('activeJobs'),
-  // CSV
-  csvFile: document.getElementById('csvFile'),
-  csvFileInfo: document.getElementById('csvFileInfo'),
-  btnProcesar: document.getElementById('btnProcesar'),
-  btnClearTabla: document.getElementById('btnClearTabla'),
-  btnExportCSV: document.getElementById('btnExportCSV'),
-  loaderCSV: document.getElementById('loaderCSV'),
-  statusCSV: document.getElementById('statusCSV'),
-  resultado: document.getElementById('resultado'),
-  // Audio
-  audioFile: document.getElementById('audioFile'),
-  audioFileInfo: document.getElementById('audioFileInfo'),
-  btnTranscribir: document.getElementById('btnTranscribir'),
-  btnClearTrans: document.getElementById('btnClearTrans'),
-  btnListarArchivos: document.getElementById('btnListarArchivos'),
-  loaderAUD: document.getElementById('loaderAUD'),
-  statusAUD: document.getElementById('statusAUD'),
-  errorAUD: document.getElementById('errorAUD'),
-  transcriptionStatus: document.getElementById('transcriptionStatus'),
-  progressContainer: document.getElementById('progressContainer'),
-  progressBar: document.getElementById('progressBar'),
-  progressText: document.getElementById('progressText'),
-  resultadoTranscripcion: document.getElementById('resultadoTranscripcion'),
-  // Archivos
-  sectionArchivos: document.getElementById('sectionArchivos'),
-  fileList: document.getElementById('fileList'),
+  // TRANSCRIPCIÓN DE AUDIO
+  trans_audioFile: document.getElementById('trans_audioFile'),
+  trans_audioFileInfo: document.getElementById('trans_audioFileInfo'),
+  trans_btnTranscribir: document.getElementById('trans_btnTranscribir'),
+  trans_btnClearTrans: document.getElementById('trans_btnClearTrans'),
+  trans_btnListarArchivos: document.getElementById('trans_btnListarArchivos'),
+  trans_loaderAUD: document.getElementById('trans_loaderAUD'),
+  trans_statusAUD: document.getElementById('trans_statusAUD'),
+  trans_errorAUD: document.getElementById('trans_errorAUD'),
+  trans_transcriptionStatus: document.getElementById('trans_transcriptionStatus'),
+  trans_progressContainer: document.getElementById('trans_progressContainer'),
+  trans_progressBar: document.getElementById('trans_progressBar'),
+  trans_progressText: document.getElementById('trans_progressText'),
+  trans_resultadoTranscripcion: document.getElementById('trans_resultadoTranscripcion'),
+  trans_sectionArchivos: document.getElementById('trans_sectionArchivos'),
+  trans_fileList: document.getElementById('trans_fileList'),
+
+  // SENTIMIENTOS
+  sent_csvFile: document.getElementById('sent_csvFile'),
+  sent_csvFileInfo: document.getElementById('sent_csvFileInfo'),
+  sent_btnProcesar: document.getElementById('sent_btnProcesar'),
+  sent_btnClear: document.getElementById('sent_btnClear'),
+  sent_btnExport: document.getElementById('sent_btnExport'),
+  sent_loader: document.getElementById('sent_loader'),
+  sent_status: document.getElementById('sent_status'),
+  sent_resultado: document.getElementById('sent_resultado'),
+  sent_charts: document.getElementById('sent_charts'),
+
+  // EVALUACIÓN/MÉTRICAS
+  eval_btnCargarMetrics: document.getElementById('eval_btnCargarMetrics'),
+  eval_btnExportMetrics: document.getElementById('eval_btnExportMetrics'),
+  eval_loaderML: document.getElementById('eval_loaderML'),
+  eval_statusML: document.getElementById('eval_statusML'),
+  eval_resultadoMetrics: document.getElementById('eval_resultadoMetrics'),
+  eval_chartsMetrics: document.getElementById('eval_chartsMetrics'),
 };
 
 // --- UTILIDADES ---
@@ -99,11 +108,11 @@ async function checkSystemHealth() {
 }
 
 // --- AUDIO: GESTIÓN DE INPUT Y VALIDACIÓN ---
-if (elements.audioFile) {
-  elements.audioFile.addEventListener('change', function (e) {
+if (elements.trans_audioFile) {
+  elements.trans_audioFile.addEventListener('change', function (e) {
     const file = e.target.files[0];
-    const label = document.querySelector('label[for="audioFile"]');
-    const errorElement = document.getElementById('audioFileError');
+    const label = document.querySelector('label[for="trans_audioFile"]');
+    const errorElement = document.getElementById('trans_audioFileError');
     errorElement.textContent = '';
     if (file) {
       const maxSize = 45 * 1024 * 1024;
@@ -112,136 +121,41 @@ if (elements.audioFile) {
         e.target.value = '';
         label.textContent = '🎵 Seleccionar archivo de audio';
         label.classList.remove('has-file');
-        elements.audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC';
+        elements.trans_audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS';
         return;
       }
       label.textContent = `🎵 ${file.name}`;
       label.classList.add('has-file');
-      elements.audioFileInfo.textContent = `Tamaño: ${formatFileSize(file.size)} | Tipo: ${file.type}`;
+      elements.trans_audioFileInfo.textContent = `Tamaño: ${formatFileSize(file.size)} | Tipo: ${file.type}`;
     } else {
       label.textContent = '🎵 Seleccionar archivo de audio';
       label.classList.remove('has-file');
-      elements.audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC';
+      elements.trans_audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS';
     }
   });
-}
-
-// --- CSV: PROCESAMIENTO Y RENDER ---
-if (elements.btnProcesar) {
-  elements.btnProcesar.addEventListener('click', async function () {
-    const file = elements.csvFile.files[0];
-    if (!file) {
-      alert('Por favor selecciona un archivo CSV.');
-      return;
-    }
-    elements.btnProcesar.disabled = true;
-    show(elements.loaderCSV);
-    hide(elements.statusCSV);
-    hide(elements.errorAUD);
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const response = await fetch('/procesar', { method: 'POST', body: formData });
-      const data = await response.json();
-      elements.btnProcesar.disabled = false;
-      hide(elements.loaderCSV);
-      if (data.error) {
-        elements.resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error}</div>`;
-        elements.resultado.classList.remove('empty');
-      } else {
-        csvData = data.data;
-        renderTabla(data.data, data.metadata);
-        show(elements.statusCSV);
-        elements.btnExportCSV.style.display = 'inline-block';
-        setTimeout(() => hide(elements.statusCSV), 3000);
-      }
-    } catch (error) {
-      elements.btnProcesar.disabled = false;
-      hide(elements.loaderCSV);
-      elements.resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ Error de conexión con el servidor</div>`;
-      elements.resultado.classList.remove('empty');
-    }
-  });
-}
-
-// --- CSV: TABLA DE DATOS ---
-function renderTabla(data, metadata) {
-  if (!data || !data.length) {
-    elements.resultado.innerHTML = '<div style="text-align: center; color: #7f8c8d;">No hay datos para mostrar</div>';
-    return;
-  }
-  const cols = Object.keys(data[0]);
-  let html = `<table><thead><tr><th style="width: 60px;">Opinión</th>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
-  html += data.map((row, i) => `<tr><td><strong>Op.${i + 1}</strong></td>${cols.map(col => `<td>${parseFloat(row[col]).toFixed(3)}</td>`).join('')}</tr>`).join('');
-  html += '</tbody></table>';
-  if (metadata) {
-    html += `
-      <div class="metadata">
-        <strong>📊 Estadísticas del Procesamiento:</strong><br>
-        • Filas procesadas: ${metadata.filas}<br>
-        • Características TF-IDF: ${metadata.columnas}<br>
-        • Textos válidos: ${metadata.textos_procesados}<br>
-        • Archivo guardado: ${metadata.archivo_guardado}
-      </div>
-    `;
-  }
-  elements.resultado.innerHTML = html;
-  elements.resultado.classList.remove('empty');
-}
-
-// --- CSV: LIMPIAR Y EXPORTAR ---
-if (elements.btnClearTabla) {
-  elements.btnClearTabla.addEventListener('click', function () {
-    elements.resultado.innerHTML = 'Aquí aparecerá la matriz TF-IDF cuando proceses un archivo CSV...';
-    elements.resultado.classList.add('empty');
-    elements.btnExportCSV.style.display = 'none';
-    csvData = null;
-  });
-}
-if (elements.btnExportCSV) {
-  elements.btnExportCSV.addEventListener('click', function () {
-    if (!csvData) return;
-    const csv = convertToCSV(csvData);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tfidf_results_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  });
-}
-function convertToCSV(data) {
-  if (!data.length) return '';
-  const headers = Object.keys(data[0]);
-  const csvContent = [
-    headers.join(','),
-    ...data.map(row => headers.map(header => row[header]).join(','))
-  ].join('\n');
-  return csvContent;
 }
 
 // --- AUDIO: TRANSCRIPCIÓN ---
-if (elements.btnTranscribir) {
-  elements.btnTranscribir.addEventListener('click', async function () {
-    const file = elements.audioFile.files[0];
+if (elements.trans_btnTranscribir) {
+  elements.trans_btnTranscribir.addEventListener('click', async function () {
+    const file = elements.trans_audioFile.files[0];
     if (!file) {
       alert('Por favor selecciona un archivo de audio.');
       return;
     }
     const maxSize = 45 * 1024 * 1024;
     if (file.size > maxSize) {
-      document.getElementById('audioFileError').textContent = 'El archivo excede el tamaño máximo permitido de 45 MB';
+      document.getElementById('trans_audioFileError').textContent = 'El archivo excede el tamaño máximo permitido de 45 MB';
       return;
     }
-    elements.btnTranscribir.disabled = true;
-    show(elements.loaderAUD);
-    hide(elements.statusAUD);
-    hide(elements.errorAUD);
-    showBlock(elements.progressContainer);
-    elements.progressBar.style.width = '0%';
-    elements.progressText.textContent = 'Iniciando transcripción...';
-    elements.transcriptionStatus.textContent = 'Subiendo archivo...';
+    elements.trans_btnTranscribir.disabled = true;
+    show(elements.trans_loaderAUD);
+    hide(elements.trans_statusAUD);
+    hide(elements.trans_errorAUD);
+    showBlock(elements.trans_progressContainer);
+    elements.trans_progressBar.style.width = '0%';
+    elements.trans_progressText.textContent = 'Iniciando transcripción...';
+    elements.trans_transcriptionStatus.textContent = 'Subiendo archivo...';
     const formData = new FormData();
     formData.append('audio', file);
     try {
@@ -251,12 +165,12 @@ if (elements.btnTranscribir) {
       currentJobId = data.job_id;
       startPolling(file.name);
     } catch (error) {
-      elements.btnTranscribir.disabled = false;
-      hide(elements.loaderAUD);
-      show(elements.errorAUD);
-      hide(elements.progressContainer);
-      elements.resultadoTranscripcion.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${error.message}</div>`;
-      elements.resultadoTranscripcion.classList.remove('empty');
+      elements.trans_btnTranscribir.disabled = false;
+      hide(elements.trans_loaderAUD);
+      show(elements.trans_errorAUD);
+      hide(elements.trans_progressContainer);
+      elements.trans_resultadoTranscripcion.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${error.message}</div>`;
+      elements.trans_resultadoTranscripcion.classList.remove('empty');
     }
   });
 }
@@ -268,44 +182,44 @@ function startPolling(filename) {
   pollInterval = setInterval(async () => {
     if (Date.now() - startTime > maxDuration) {
       clearInterval(pollInterval);
-      elements.transcriptionStatus.textContent = 'Tiempo de espera agotado';
-      elements.btnTranscribir.disabled = false;
-      hide(elements.loaderAUD);
-      show(elements.errorAUD);
-      hide(elements.progressContainer);
+      elements.trans_transcriptionStatus.textContent = 'Tiempo de espera agotado';
+      elements.trans_btnTranscribir.disabled = false;
+      hide(elements.trans_loaderAUD);
+      show(elements.trans_errorAUD);
+      hide(elements.trans_progressContainer);
       return;
     }
     try {
       const response = await fetch(`/estado/${currentJobId}`);
       const data = await response.json();
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      elements.progressText.textContent = `Tiempo transcurrido: ${elapsed}s`;
+      elements.trans_progressText.textContent = `Tiempo transcurrido: ${elapsed}s`;
       if (data.status === 'processing') {
         const progress = Math.min(95, data.progress || 0);
-        elements.progressBar.style.width = `${progress}%`;
-        elements.transcriptionStatus.textContent = `Procesando ${filename}...`;
+        elements.trans_progressBar.style.width = `${progress}%`;
+        elements.trans_transcriptionStatus.textContent = `Procesando ${filename}...`;
       } else if (data.status === 'completed') {
         clearInterval(pollInterval);
-        elements.progressBar.style.width = '100%';
-        elements.transcriptionStatus.textContent = `Completado: ${data.saved_as}`;
-        elements.resultadoTranscripcion.textContent = data.transcripcion;
-        elements.resultadoTranscripcion.classList.remove('empty');
-        hide(elements.loaderAUD);
-        show(elements.statusAUD);
-        elements.btnTranscribir.disabled = false;
+        elements.trans_progressBar.style.width = '100%';
+        elements.trans_transcriptionStatus.textContent = `Completado: ${data.saved_as}`;
+        elements.trans_resultadoTranscripcion.textContent = data.transcripcion;
+        elements.trans_resultadoTranscripcion.classList.remove('empty');
+        hide(elements.trans_loaderAUD);
+        show(elements.trans_statusAUD);
+        elements.trans_btnTranscribir.disabled = false;
         setTimeout(() => {
-          hide(elements.progressContainer);
-          hide(elements.statusAUD);
+          hide(elements.trans_progressContainer);
+          hide(elements.trans_statusAUD);
         }, 5000);
       } else if (data.status === 'failed') {
         clearInterval(pollInterval);
-        elements.transcriptionStatus.textContent = 'Error en transcripción';
-        elements.resultadoTranscripcion.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error || 'Error desconocido'}</div>`;
-        elements.resultadoTranscripcion.classList.remove('empty');
-        elements.btnTranscribir.disabled = false;
-        hide(elements.loaderAUD);
-        show(elements.errorAUD);
-        hide(elements.progressContainer);
+        elements.trans_transcriptionStatus.textContent = 'Error en transcripción';
+        elements.trans_resultadoTranscripcion.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error || 'Error desconocido'}</div>`;
+        elements.trans_resultadoTranscripcion.classList.remove('empty');
+        elements.trans_btnTranscribir.disabled = false;
+        hide(elements.trans_loaderAUD);
+        show(elements.trans_errorAUD);
+        hide(elements.trans_progressContainer);
       }
     } catch (error) {
       // Polling error: ignora para no frenar loop, pero puedes mostrar error si quieres
@@ -314,40 +228,40 @@ function startPolling(filename) {
 }
 
 // --- AUDIO: LIMPIAR TRANSCRIPCIÓN ---
-if (elements.btnClearTrans) {
-  elements.btnClearTrans.addEventListener('click', function () {
+if (elements.trans_btnClearTrans) {
+  elements.trans_btnClearTrans.addEventListener('click', function () {
     if (pollInterval) {
       clearInterval(pollInterval);
       pollInterval = null;
     }
-    elements.resultadoTranscripcion.innerHTML = 'Aquí aparecerá la transcripción cuando proceses un archivo de audio...';
-    elements.resultadoTranscripcion.classList.add('empty');
-    elements.progressText.textContent = '';
-    hide(elements.progressContainer);
-    hide(elements.statusAUD);
-    hide(elements.errorAUD);
+    elements.trans_resultadoTranscripcion.innerHTML = 'Aquí aparecerá la transcripción cuando proceses un archivo de audio...';
+    elements.trans_resultadoTranscripcion.classList.add('empty');
+    elements.trans_progressText.textContent = '';
+    hide(elements.trans_progressContainer);
+    hide(elements.trans_statusAUD);
+    hide(elements.trans_errorAUD);
     currentJobId = null;
   });
 }
 
 // --- AUDIO: LISTAR ARCHIVOS ---
-if (elements.btnListarArchivos) {
-  elements.btnListarArchivos.addEventListener('click', async function () {
-    showBlock(elements.sectionArchivos);
+if (elements.trans_btnListarArchivos) {
+  elements.trans_btnListarArchivos.addEventListener('click', async function () {
+    showBlock(elements.trans_sectionArchivos);
     await loadFileList();
   });
 }
 async function loadFileList() {
   try {
-    elements.fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #7f8c8d;">Cargando...</div>';
+    elements.trans_fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #7f8c8d;">Cargando...</div>';
     const response = await fetch('/listar_archivos');
     const data = await response.json();
     if (data.error) {
-      elements.fileList.innerHTML = `<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ ${data.error}</div>`;
+      elements.trans_fileList.innerHTML = `<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ ${data.error}</div>`;
       return;
     }
     if (!data.archivos.length) {
-      elements.fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #7f8c8d;">No hay archivos de transcripción</div>';
+      elements.trans_fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #7f8c8d;">No hay archivos de transcripción</div>';
       return;
     }
     const html = data.archivos.map(archivo => `
@@ -359,9 +273,9 @@ async function loadFileList() {
         <button class="btn btn-secondary btn-small" onclick="downloadFile('${archivo.nombre}')">💾 Descargar</button>
       </div>
     `).join('');
-    elements.fileList.innerHTML = html;
+    elements.trans_fileList.innerHTML = html;
   } catch (error) {
-    elements.fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ Error cargando archivos</div>';
+    elements.trans_fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ Error cargando archivos</div>';
   }
 }
 
@@ -369,6 +283,112 @@ async function loadFileList() {
 window.downloadFile = function (filename) {
   window.open(`/descargar/${filename}`, '_blank');
 };
+
+// --- SENTIMIENTOS: MANEJO DE CSV ---
+if (elements.sent_csvFile) {
+  elements.sent_csvFile.addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    const label = document.querySelector('label[for="sent_csvFile"]');
+    elements.sent_csvFileInfo.textContent = file
+      ? `Tamaño: ${formatFileSize(file.size)} | Nombre: ${file.name}`
+      : '';
+    if (label) {
+      label.textContent = file ? `📁 ${file.name}` : "📁 Seleccionar archivo CSV";
+      if (file) label.classList.add('has-file');
+      else label.classList.remove('has-file');
+    }
+  });
+}
+
+if (elements.sent_btnProcesar) {
+  elements.sent_btnProcesar.addEventListener('click', async function () {
+    const file = elements.sent_csvFile.files[0];
+    if (!file) {
+      alert('Por favor selecciona un archivo CSV.');
+      return;
+    }
+    elements.sent_btnProcesar.disabled = true;
+    show(elements.sent_loader);
+    hide(elements.sent_status);
+    elements.sent_resultado.innerHTML = '';
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response = await fetch('/procesar', { method: 'POST', body: formData });
+      const data = await response.json();
+      elements.sent_btnProcesar.disabled = false;
+      hide(elements.sent_loader);
+     if (data.error) {
+      elements.sent_resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error}</div>`;
+      elements.sent_resultado.classList.remove('empty');
+    } else {
+      // ANTES: elements.sent_resultado.innerHTML = `<pre>${JSON.stringify(data.metadata || data, null, 2)}</pre>`;
+      // AHORA:
+      renderTablaSentimientos(data.data, data.metadata);
+      show(elements.sent_status);
+      elements.sent_btnExport.style.display = 'inline-block';
+      setTimeout(() => hide(elements.sent_status), 3000);
+    }
+    } catch (error) {
+      elements.sent_btnProcesar.disabled = false;
+      hide(elements.sent_loader);
+      elements.sent_resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ Error de conexión con el servidor</div>`;
+      elements.sent_resultado.classList.remove('empty');
+    }
+  });
+}
+
+// --- EVALUACIÓN/MÉTRICAS: SECCIÓN DEMO ---
+// (puedes implementar lo que desees, aquí ejemplo de mostrar loader)
+if (elements.eval_btnCargarMetrics) {
+  elements.eval_btnCargarMetrics.addEventListener('click', function () {
+    show(elements.eval_loaderML);
+    setTimeout(() => {
+      hide(elements.eval_loaderML);
+      show(elements.eval_statusML);
+      setTimeout(() => hide(elements.eval_statusML), 2000);
+      elements.eval_resultadoMetrics.innerHTML =
+        '<div style="color: #27ae60;">Métricas generadas de ejemplo.</div>';
+      elements.eval_resultadoMetrics.classList.remove('empty');
+    }, 1500);
+  });
+}
+if (elements.eval_btnExportMetrics) {
+  elements.eval_btnExportMetrics.addEventListener('click', function () {
+    // Aquí tu lógica de exportación (demo)
+    alert('Exportar reporte (demo)');
+  });
+}
+function renderTablaSentimientos(matrix, metadata) {
+  if (!matrix || !matrix.length) {
+    elements.sent_resultado.innerHTML = 'No hay datos para mostrar.';
+    return;
+  }
+  const cols = Object.keys(matrix[0]);
+  let html = `<table><thead><tr><th style="width: 60px;">Op.</th>${
+    cols.map(c => `<th>${c}</th>`).join('')
+  }</tr></thead><tbody>`;
+  html += matrix.map((row, i) =>
+    `<tr><td><strong>${i + 1}</strong></td>${
+      cols.map(col => `<td>${parseFloat(row[col]).toFixed(3)}</td>`).join('')
+    }</tr>`
+  ).join('');
+  html += '</tbody></table>';
+
+  if (metadata) {
+    html += `
+      <div class="metadata">
+        <strong>📊 Estadísticas:</strong><br>
+        • Filas: ${metadata.filas} <br>
+        • Columnas: ${metadata.columnas} <br>
+        • Textos procesados: ${metadata.textos_procesados} <br>
+        • Archivo guardado: ${metadata.archivo_guardado}
+      </div>
+    `;
+  }
+  elements.sent_resultado.innerHTML = html;
+  elements.sent_resultado.classList.remove('empty');
+}
 
 // --- INICIALIZACIÓN DEL SISTEMA ---
 document.addEventListener('DOMContentLoaded', function () {
