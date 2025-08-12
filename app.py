@@ -94,6 +94,8 @@ def get_next_opinion_number():
 def convert_audio_to_wav(input_path, output_path):
     """Convierte audio a WAV 16kHz mono usando ffmpeg"""
     try:
+        logger.info(f"Intentando convertir: {input_path} -> {output_path}")
+        logger.info(f"¿Existe input_path? {os.path.exists(input_path)} Tamaño: {os.path.getsize(input_path) if os.path.exists(input_path) else 'no existe'}")
         cmd = [
             "ffmpeg", "-y", "-i", input_path,
             "-ar", "16000", "-ac", "1",
@@ -350,8 +352,9 @@ def transcribir_audio():
         if file_size > max_size:
             return jsonify({"error": "El archivo excede el tamaño máximo de 45 MB"}), 400
         # Verificar extensión
+        logger.info(f"Archivo recibido para transcribir: '{archivo.filename}'")
         filename = archivo.filename.lower()
-        allowed_extensions = {'.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac'}
+        allowed_extensions = {'.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.opus'}
         if not any(filename.endswith(ext) for ext in allowed_extensions):
             return jsonify({"error": "Formato de audio no soportado"}), 400
         # Limpiar trabajos antiguos
