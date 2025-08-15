@@ -101,7 +101,138 @@ async function checkSystemHealth() {
   }
 }
 
-// --- AUDIO: LISTAR ARCHIVOS ---
+// --- AUDIO: SUBIR Y PROCESAR TRANSCRIPCIÓN ASÍNCRONA ---
+if (elements.trans_audioFile) {
+  elements.trans_audioFile.addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    const label = document.querySelector('label[for="trans_audioFile"]');
+    elements.trans_audioFileInfo.textContent = file
+      ? `Tamaño: ${formatFileSize(file.size)} | Nombre: ${file.name}`
+      : 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS (MÁX. 45MB)';
+    if (label) {
+      label.textContent = file ? `🎵 ${file.name}` : "🎵 Seleccionar archivo de audio";
+      if (file) label.classList.add('has-file');
+      else label.classList.remove('has-file');
+    }
+    if (elements.trans_audioFileError) elements.trans_audioFileError.textContent = "";
+  });
+}
+
+if (elements.trans_btnTranscribir) {
+  elements.trans_btnTranscribir.addEventListener('click', async function () {
+    const file = elements.trans_audioFile.files[0];
+    if (!file) {
+      if (elements.trans_audioFileError) elements.trans_audioFileError.textContent = 'Selecciona un archivo de audio.';
+      return;
+    }
+    if (elements.trans_audioFileError) elements.trans_audioFileError.textContent = '';
+    elements.trans_btnTranscribir.disabled = true;
+    show(elements.trans_loaderAUD);
+    hide(elements.trans_statusAUD);
+    hide(elements.trans_errorAUD);
+    elements.trans_resultadoTranscripcion.innerHTML = '';
+    elements.trans_resultadoTranscripcion.classList.add('empty');
+    elements.trans_progressText.textContent = '';
+    elements.trans_progressBar.style.width = "0%";
+    // Subir archivo al backend (inicia el trabajo)
+    const formData = new FormData();
+    formData.append('audio', file);
+    try {
+      const resp = await fetch('/transcribir', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.error || !data.job_id) {
+        elements.trans_btnTranscribir.disabled = false;
+        hide(elements.trans_loaderAUD);
+        show(elements.trans_errorAUD);
+        elements.trans_errorAUD.textContent = '❌ ' + (data.error || "No se pudo iniciar la transcripción");
+        return;
+      }
+      // Iniciar polling para progreso y resultado
+      const jobId = data.job_id;
+      pollTranscripcionEstado(jobId);
+    } catch (err) {
+      elements.trans_btnTranscribir.disabled = false;
+      hide(elements.trans_loaderAUD);
+      show(elements.trans_errorAUD);
+      elements.trans_errorAUD.textContent = '❌ Error de conexión';
+    }
+  });
+}
+
+// --- POLLING DEL ESTADO DE LA TRANSCRIPCIÓN ---
+function pollTranscripcionEstado(jobId) {
+  let intentos = 0;
+  const maxIntentos = 180; // 3 minutos máximo
+  function consultar() {
+    fetch(`/estado/${jobId}`)
+      .then(resp => resp.json())
+      .then(data => {
+        intentos++;
+        // Progreso
+        elements.trans_progressContainer.style.display = "block";
+        let progreso = data.progress || 0;
+        elements.trans_progressBar.style.width = progreso + "%";
+        elements.trans_progressText.textContent = `Progreso: ${progreso}%`;
+        // Estado
+        if (data.status === "processing") {
+          elements.trans_transcriptionStatus.textContent = "Procesando audio (" + progreso + "%)...";
+          if (intentos < maxIntentos) setTimeout(consultar, 2000);
+          else mostrarError("Tiempo de espera excedido.");
+        } else if (data.status === "completed") {
+          hide(elements.trans_loaderAUD);
+          show(elements.trans_statusAUD);
+          elements.trans_resultadoTranscripcion.innerHTML = data.transcripcion || "Transcripción vacía";
+          elements.trans_resultadoTranscripcion.classList.remove('empty');
+          elements.trans_btnTranscribir.disabled = false;
+          elements.trans_progressBar.style.width = "100%";
+          elements.trans_progressText.textContent = "¡Transcripción completada!";
+        } else if (data.status === "failed") {
+          mostrarError(data.error || "Error al transcribir");
+        } else {
+          mostrarError("Estado desconocido");
+        }
+      })
+      .catch(() => {
+        mostrarError("Error de conexión con el backend");
+      });
+  }
+  function mostrarError(msg) {
+    hide(elements.trans_loaderAUD);
+    show(elements.trans_errorAUD);
+    elements.trans_errorAUD.textContent = '❌ ' + msg;
+    elements.trans_btnTranscribir.disabled = false;
+    elements.trans_progressContainer.style.display = "none";
+    elements.trans_progressText.textContent = '';
+  }
+  consultar();
+}
+
+// --- LIMPIAR SECCIÓN DE TRANSCRIPCIÓN ---
+if (elements.trans_btnClearTrans) {
+  elements.trans_btnClearTrans.addEventListener('click', function () {
+    if (elements.trans_audioFile) elements.trans_audioFile.value = '';
+    const label = document.querySelector('label[for="trans_audioFile"]');
+    if (label) {
+      label.textContent = "🎵 Seleccionar archivo de audio";
+      label.classList.remove('has-file');
+    }
+    if (elements.trans_audioFileInfo) elements.trans_audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS (MÁX. 45MB)';
+    if (elements.trans_audioFileError) elements.trans_audioFileError.textContent = '';
+    if (elements.trans_loaderAUD) hide(elements.trans_loaderAUD);
+    if (elements.trans_statusAUD) hide(elements.trans_statusAUD);
+    if (elements.trans_errorAUD) hide(elements.trans_errorAUD);
+    if (elements.trans_resultadoTranscripcion) {
+      elements.trans_resultadoTranscripcion.innerHTML = 'Aquí aparecerá la transcripción cuando proceses un archivo de audio...';
+      elements.trans_resultadoTranscripcion.classList.add('empty');
+    }
+    elements.trans_progressContainer.style.display = "none";
+    elements.trans_progressText.textContent = '';
+    elements.trans_progressBar.style.width = "0%";
+    elements.trans_btnTranscribir.disabled = false;
+  });
+}
+
+// --- LISTAR Y DESCARGAR ARCHIVOS (ya lo tienes, se mantiene igual) ---
 if (elements.trans_btnListarArchivos) {
   elements.trans_btnListarArchivos.addEventListener('click', async function () {
     showBlock(elements.trans_sectionArchivos);

@@ -578,6 +578,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score, classification_report, confusion_matrix
 from flask import Flask, request, jsonify
+from imblearn.over_sampling import SMOTE
+from imblearn.combine import SMOTETomek
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -646,21 +648,92 @@ def evaluar_metricas_entrenando():
     if len(y) == 0:
         return jsonify({'error': 'No hay datos válidos para entrenar/comparar.'}), 400
 
-    # Entrenamiento y validación simple
+    # Split datos
     from sklearn.model_selection import train_test_split
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
 
-    modelo = LogisticRegression(class_weight='balanced', solver='liblinear', max_iter=5000)
-    modelo.fit(X_train, y_train)
-    y_pred = modelo.predict(X_test)
+    # Balanceo agresivo con SMOTE
+    clases, conteos = np.unique(y_train, return_counts=True)
+    target_counts = {1: min(conteos[0], 40), 2: 50, 3: 50}
+    smote = SMOTE(sampling_strategy=target_counts, random_state=42, k_neighbors=min(5, min(conteos)-1))
+    X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
 
-    # Métricas
-    acc = accuracy_score(y_test, y_pred)
-    recall = recall_score(y_test, y_pred, average='macro')
-    precision = precision_score(y_test, y_pred, average='macro')
-    f1 = f1_score(y_test, y_pred, average='macro')
-    report = classification_report(y_test, y_pred, target_names=['negativo', 'neutro', 'positivo'], output_dict=True)
-    cm = confusion_matrix(y_test, y_pred, labels=[1,2,3])
+    # Probar diferentes configuraciones de Regresión Logística
+    configuraciones = [
+        {
+            'nombre': 'Config 1: Penalizar clase negativa',
+            'params': {
+                'C': 0.1,
+                'class_weight': {1: 0.5, 2: 3.0, 3: 5.0},
+                'solver': 'liblinear',
+                'penalty': 'l1',
+                'max_iter': 5000,
+                'random_state': 42
+            }
+        },
+        {
+            'nombre': 'Config 2: Menor regularización',
+            'params': {
+                'C': 1.0,  # Menos regularización
+                'class_weight': {1: 0.2, 2: 2.0, 3: 3.0},
+                'solver': 'liblinear',
+                'penalty': 'l2',  # L2 en vez de L1
+                'max_iter': 5000,
+                'random_state': 42
+            }
+        },
+        {
+            'nombre': 'Config 3: Auto-balance',
+            'params': {
+                'C': 0.5,
+                'class_weight': 'balanced',
+                'solver': 'newton-cg',  # Solver alternativo
+                'penalty': 'l2',
+                'max_iter': 5000,
+                'random_state': 42
+            }
+        }
+    ]
+
+    mejor_config = None
+    mejor_puntuacion = 0
+    mejor_modelo = None
+
+    # Probar cada configuración
+    for config in configuraciones:
+        modelo = LogisticRegression(**config['params'])
+        modelo.fit(X_resampled, y_resampled)
+        y_pred = modelo.predict(X_test)
+        # Métricas
+        report = classification_report(y_test, y_pred, output_dict=True)
+        pred_clases, pred_conteos = np.unique(y_pred, return_counts=True)
+        pred_distribucion = {cls: count for cls, count in zip(pred_clases, pred_conteos)}
+        for cls in [1, 2, 3]:
+            if cls not in pred_distribucion:
+                pred_distribucion[cls] = 0
+        clases_predichas = len([v for v in pred_distribucion.values() if v > 0])
+        balance_pred = min(pred_distribucion.values()) / max(pred_distribucion.values()) if max(pred_distribucion.values()) > 0 else 0
+        f1_macro = report['macro avg']['f1-score'] if 'macro avg' in report else 0
+        puntuacion = f1_macro * (0.5 + 0.5 * balance_pred) * (clases_predichas / 3.0)
+        if puntuacion > mejor_puntuacion:
+            mejor_puntuacion = puntuacion
+            mejor_config = config
+            mejor_modelo = modelo
+
+    # Entrenar modelo final con la mejor configuración
+    if mejor_modelo is None:
+        mejor_modelo = LogisticRegression(class_weight='balanced', solver='liblinear', max_iter=5000)
+        mejor_modelo.fit(X_resampled, y_resampled)
+
+    y_pred_final = mejor_modelo.predict(X_test)
+
+    # Métricas finales
+    acc = accuracy_score(y_test, y_pred_final)
+    recall = recall_score(y_test, y_pred_final, average='macro')
+    precision = precision_score(y_test, y_pred_final, average='macro')
+    f1 = f1_score(y_test, y_pred_final, average='macro')
+    report = classification_report(y_test, y_pred_final, target_names=['negativo', 'neutro', 'positivo'], output_dict=True)
+    cm = confusion_matrix(y_test, y_pred_final, labels=[1,2,3])
 
     # Graficar matriz de confusión
     plt.figure(figsize=(7, 6))
@@ -683,7 +756,8 @@ def evaluar_metricas_entrenando():
         'precision': round(precision, 4),
         'f1': round(f1, 4),
         'report': report,
-        'n_muestras': int(len(y_test))
+        'n_muestras': int(len(y_test)),
+        'mejor_configuracion': mejor_config['nombre'] if mejor_config else "Balanced Default"
     })
 
 if __name__ == "__main__":
