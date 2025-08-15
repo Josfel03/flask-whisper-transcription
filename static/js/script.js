@@ -15,14 +15,13 @@ document.addEventListener('DOMContentLoaded', function () {
       tabContents[this.dataset.tab].style.display = '';
     });
   });
-  // Inicializa mostrando la pestaña de transcripción
-  tabBtns[0].click();
+  tabBtns[0].click(); // Inicializa mostrando la pestaña de transcripción
 });
 
 // --- VARIABLES GLOBALES ---
 let currentJobId = null;
 let pollInterval = null;
-let csvData = null;
+let lastSentimientoFile = null; // <--- Nuevo: último CSV generado por sentimientos
 
 // --- ELEMENTOS DEL DOM ---
 const elements = {
@@ -58,6 +57,7 @@ const elements = {
   sent_status: document.getElementById('sent_status'),
   sent_resultado: document.getElementById('sent_resultado'),
   sent_charts: document.getElementById('sent_charts'),
+  sent_listadoArchivos: document.getElementById('sent_listadoArchivos'),
 
   // EVALUACIÓN/MÉTRICAS
   eval_btnCargarMetrics: document.getElementById('eval_btnCargarMetrics'),
@@ -69,15 +69,9 @@ const elements = {
 };
 
 // --- UTILIDADES ---
-function show(element) {
-  if (element) element.style.display = 'flex';
-}
-function hide(element) {
-  if (element) element.style.display = 'none';
-}
-function showBlock(element) {
-  if (element) element.style.display = 'block';
-}
+function show(element) { if (element) element.style.display = 'flex'; }
+function hide(element) { if (element) element.style.display = 'none'; }
+function showBlock(element) { if (element) element.style.display = 'block'; }
 function formatFileSize(bytes) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   if (bytes === 0) return '0 Bytes';
@@ -105,143 +99,6 @@ async function checkSystemHealth() {
     elements.systemHealth.textContent = '❌ Error de conexión';
     elements.systemHealth.className = 'status-value error';
   }
-}
-
-// --- AUDIO: GESTIÓN DE INPUT Y VALIDACIÓN ---
-if (elements.trans_audioFile) {
-  elements.trans_audioFile.addEventListener('change', function (e) {
-    const file = e.target.files[0];
-    const label = document.querySelector('label[for="trans_audioFile"]');
-    const errorElement = document.getElementById('trans_audioFileError');
-    errorElement.textContent = '';
-    if (file) {
-      const maxSize = 45 * 1024 * 1024;
-      if (file.size > maxSize) {
-        errorElement.textContent = 'El archivo excede el tamaño máximo permitido de 45 MB';
-        e.target.value = '';
-        label.textContent = '🎵 Seleccionar archivo de audio';
-        label.classList.remove('has-file');
-        elements.trans_audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS';
-        return;
-      }
-      label.textContent = `🎵 ${file.name}`;
-      label.classList.add('has-file');
-      elements.trans_audioFileInfo.textContent = `Tamaño: ${formatFileSize(file.size)} | Tipo: ${file.type}`;
-    } else {
-      label.textContent = '🎵 Seleccionar archivo de audio';
-      label.classList.remove('has-file');
-      elements.trans_audioFileInfo.textContent = 'Formatos soportados: MP3, WAV, M4A, OGG, FLAC, AAC, OPUS';
-    }
-  });
-}
-
-// --- AUDIO: TRANSCRIPCIÓN ---
-if (elements.trans_btnTranscribir) {
-  elements.trans_btnTranscribir.addEventListener('click', async function () {
-    const file = elements.trans_audioFile.files[0];
-    if (!file) {
-      alert('Por favor selecciona un archivo de audio.');
-      return;
-    }
-    const maxSize = 45 * 1024 * 1024;
-    if (file.size > maxSize) {
-      document.getElementById('trans_audioFileError').textContent = 'El archivo excede el tamaño máximo permitido de 45 MB';
-      return;
-    }
-    elements.trans_btnTranscribir.disabled = true;
-    show(elements.trans_loaderAUD);
-    hide(elements.trans_statusAUD);
-    hide(elements.trans_errorAUD);
-    showBlock(elements.trans_progressContainer);
-    elements.trans_progressBar.style.width = '0%';
-    elements.trans_progressText.textContent = 'Iniciando transcripción...';
-    elements.trans_transcriptionStatus.textContent = 'Subiendo archivo...';
-    const formData = new FormData();
-    formData.append('audio', file);
-    try {
-      const response = await fetch('/transcribir', { method: 'POST', body: formData });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      currentJobId = data.job_id;
-      startPolling(file.name);
-    } catch (error) {
-      elements.trans_btnTranscribir.disabled = false;
-      hide(elements.trans_loaderAUD);
-      show(elements.trans_errorAUD);
-      hide(elements.trans_progressContainer);
-      elements.trans_resultadoTranscripcion.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${error.message}</div>`;
-      elements.trans_resultadoTranscripcion.classList.remove('empty');
-    }
-  });
-}
-
-// --- POLLING DE TRANSCRIPCIÓN ---
-function startPolling(filename) {
-  const startTime = Date.now();
-  const maxDuration = 15 * 60 * 1000; // 15 minutos
-  pollInterval = setInterval(async () => {
-    if (Date.now() - startTime > maxDuration) {
-      clearInterval(pollInterval);
-      elements.trans_transcriptionStatus.textContent = 'Tiempo de espera agotado';
-      elements.trans_btnTranscribir.disabled = false;
-      hide(elements.trans_loaderAUD);
-      show(elements.trans_errorAUD);
-      hide(elements.trans_progressContainer);
-      return;
-    }
-    try {
-      const response = await fetch(`/estado/${currentJobId}`);
-      const data = await response.json();
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      elements.trans_progressText.textContent = `Tiempo transcurrido: ${elapsed}s`;
-      if (data.status === 'processing') {
-        const progress = Math.min(95, data.progress || 0);
-        elements.trans_progressBar.style.width = `${progress}%`;
-        elements.trans_transcriptionStatus.textContent = `Procesando ${filename}...`;
-      } else if (data.status === 'completed') {
-        clearInterval(pollInterval);
-        elements.trans_progressBar.style.width = '100%';
-        elements.trans_transcriptionStatus.textContent = `Completado: ${data.saved_as}`;
-        elements.trans_resultadoTranscripcion.textContent = data.transcripcion;
-        elements.trans_resultadoTranscripcion.classList.remove('empty');
-        hide(elements.trans_loaderAUD);
-        show(elements.trans_statusAUD);
-        elements.trans_btnTranscribir.disabled = false;
-        setTimeout(() => {
-          hide(elements.trans_progressContainer);
-          hide(elements.trans_statusAUD);
-        }, 5000);
-      } else if (data.status === 'failed') {
-        clearInterval(pollInterval);
-        elements.trans_transcriptionStatus.textContent = 'Error en transcripción';
-        elements.trans_resultadoTranscripcion.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error || 'Error desconocido'}</div>`;
-        elements.trans_resultadoTranscripcion.classList.remove('empty');
-        elements.trans_btnTranscribir.disabled = false;
-        hide(elements.trans_loaderAUD);
-        show(elements.trans_errorAUD);
-        hide(elements.trans_progressContainer);
-      }
-    } catch (error) {
-      // Polling error: ignora para no frenar loop, pero puedes mostrar error si quieres
-    }
-  }, 2000);
-}
-
-// --- AUDIO: LIMPIAR TRANSCRIPCIÓN ---
-if (elements.trans_btnClearTrans) {
-  elements.trans_btnClearTrans.addEventListener('click', function () {
-    if (pollInterval) {
-      clearInterval(pollInterval);
-      pollInterval = null;
-    }
-    elements.trans_resultadoTranscripcion.innerHTML = 'Aquí aparecerá la transcripción cuando proceses un archivo de audio...';
-    elements.trans_resultadoTranscripcion.classList.add('empty');
-    elements.trans_progressText.textContent = '';
-    hide(elements.trans_progressContainer);
-    hide(elements.trans_statusAUD);
-    hide(elements.trans_errorAUD);
-    currentJobId = null;
-  });
 }
 
 // --- AUDIO: LISTAR ARCHIVOS ---
@@ -278,13 +135,11 @@ async function loadFileList() {
     elements.trans_fileList.innerHTML = '<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ Error cargando archivos</div>';
   }
 }
-
-// --- DESCARGAR ARCHIVO DE TRANSCRIPCIÓN ---
 window.downloadFile = function (filename) {
   window.open(`/descargar/${filename}`, '_blank');
 };
 
-// --- SENTIMIENTOS: MANEJO DE CSV ---
+// --- SENTIMIENTOS: MANEJO DE CSV Y ARCHIVOS ---
 if (elements.sent_csvFile) {
   elements.sent_csvFile.addEventListener('change', function (e) {
     const file = e.target.files[0];
@@ -300,6 +155,7 @@ if (elements.sent_csvFile) {
   });
 }
 
+// --- SENTIMIENTOS: PROCESAR, EXPORTAR, LISTAR ---
 if (elements.sent_btnProcesar) {
   elements.sent_btnProcesar.addEventListener('click', async function () {
     const file = elements.sent_csvFile.files[0];
@@ -311,85 +167,181 @@ if (elements.sent_btnProcesar) {
     show(elements.sent_loader);
     hide(elements.sent_status);
     elements.sent_resultado.innerHTML = '';
+    lastSentimientoFile = null; // <--- Limpia el estado previo
+    elements.sent_btnExport.style.display = 'none'; // Oculta hasta que haya archivo
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const response = await fetch('/procesar', { method: 'POST', body: formData });
+      const response = await fetch('/sentimientos', { method: 'POST', body: formData });
       const data = await response.json();
       elements.sent_btnProcesar.disabled = false;
       hide(elements.sent_loader);
-     if (data.error) {
-      elements.sent_resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error}</div>`;
-      elements.sent_resultado.classList.remove('empty');
-    } else {
-      // ANTES: elements.sent_resultado.innerHTML = `<pre>${JSON.stringify(data.metadata || data, null, 2)}</pre>`;
-      // AHORA:
-      renderTablaSentimientos(data.data, data.metadata);
-      show(elements.sent_status);
-      elements.sent_btnExport.style.display = 'inline-block';
-      setTimeout(() => hide(elements.sent_status), 3000);
-    }
+      if (data.error) {
+        elements.sent_resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error}</div>`;
+        elements.sent_resultado.classList.remove('empty');
+      } else {
+        // Mostrar gráfica solo positivo/negativo
+        elements.sent_charts.style.display = 'block';
+        document.getElementById('sent_barChart').outerHTML = `<img src="data:image/png;base64,${data.grafica_b64}" style="max-width:100%;">`;
+        document.getElementById('sent_pieChart').style.display = 'none';
+        // Mostrar resultados y enlace de descarga
+        lastSentimientoFile = data.archivo_guardado.split('/').pop(); // <--- Guarda el último archivo generado
+        elements.sent_resultado.innerHTML = `
+          <div>Archivo generado: <b>${lastSentimientoFile}</b></div>
+          <div>Positivos: ${data.positivos} | Negativos: ${data.negativos} | Neutros: ${data.neutros}</div>
+          <button onclick="window.downloadSentimiento('${lastSentimientoFile}')">💾 Descargar CSV resultado</button>
+        `;
+        elements.sent_resultado.classList.remove('empty');
+        show(elements.sent_status);
+        elements.sent_btnExport.style.display = 'inline-block'; // Activa el botón exportar
+        setTimeout(() => hide(elements.sent_status), 3000);
+        // Mostrar tabla si tienes los datos disponibles
+        if (data.data && typeof renderTablaSentimientos === 'function') {
+          renderTablaSentimientos(data.data, data.metadata);
+        }
+      }
     } catch (error) {
       elements.sent_btnProcesar.disabled = false;
       hide(elements.sent_loader);
       elements.sent_resultado.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ Error de conexión con el servidor</div>`;
       elements.sent_resultado.classList.remove('empty');
+      lastSentimientoFile = null;
+      elements.sent_btnExport.style.display = 'none';
     }
   });
 }
 
-// --- EVALUACIÓN/MÉTRICAS: SECCIÓN DEMO ---
-// (puedes implementar lo que desees, aquí ejemplo de mostrar loader)
-if (elements.eval_btnCargarMetrics) {
-  elements.eval_btnCargarMetrics.addEventListener('click', function () {
-    show(elements.eval_loaderML);
-    setTimeout(() => {
-      hide(elements.eval_loaderML);
-      show(elements.eval_statusML);
-      setTimeout(() => hide(elements.eval_statusML), 2000);
-      elements.eval_resultadoMetrics.innerHTML =
-        '<div style="color: #27ae60;">Métricas generadas de ejemplo.</div>';
-      elements.eval_resultadoMetrics.classList.remove('empty');
-    }, 1500);
+// --- SENTIMIENTOS: EXPORTAR ÚLTIMO ARCHIVO ---
+if (elements.sent_btnExport) {
+  elements.sent_btnExport.addEventListener('click', function () {
+    if (!lastSentimientoFile) {
+      alert('No hay archivo generado para exportar. Procesa un CSV primero.');
+      return;
+    }
+    window.downloadSentimiento(lastSentimientoFile);
   });
 }
-if (elements.eval_btnExportMetrics) {
-  elements.eval_btnExportMetrics.addEventListener('click', function () {
-    // Aquí tu lógica de exportación (demo)
-    alert('Exportar reporte (demo)');
-  });
-}
-function renderTablaSentimientos(matrix, metadata) {
-  if (!matrix || !matrix.length) {
-    elements.sent_resultado.innerHTML = 'No hay datos para mostrar.';
+window.downloadSentimiento = function (filename) {
+  if (!filename) {
+    alert('No se encontró el archivo para descargar');
     return;
   }
-  const cols = Object.keys(matrix[0]);
-  let html = `<table><thead><tr><th style="width: 60px;">Op.</th>${
-    cols.map(c => `<th>${c}</th>`).join('')
-  }</tr></thead><tbody>`;
-  html += matrix.map((row, i) =>
-    `<tr><td><strong>${i + 1}</strong></td>${
-      cols.map(col => `<td>${parseFloat(row[col]).toFixed(3)}</td>`).join('')
-    }</tr>`
-  ).join('');
-  html += '</tbody></table>';
+  window.open(`/descargar_sentimiento/${filename}`, '_blank');
+};
 
-  if (metadata) {
-    html += `
-      <div class="metadata">
-        <strong>📊 Estadísticas:</strong><br>
-        • Filas: ${metadata.filas} <br>
-        • Columnas: ${metadata.columnas} <br>
-        • Textos procesados: ${metadata.textos_procesados} <br>
-        • Archivo guardado: ${metadata.archivo_guardado}
+// --- SENTIMIENTOS: LISTAR ARCHIVOS CSV MEJORADO ---
+async function listarSentimientos() {
+  try {
+    elements.sent_listadoArchivos.innerHTML = '<div style="padding: 2rem; text-align: center; color: #7f8c8d;">Cargando...</div>';
+    const response = await fetch('/listar_sentimientos');
+    const data = await response.json();
+    if (data.error) {
+      elements.sent_listadoArchivos.innerHTML = `<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ ${data.error}</div>`;
+      return;
+    }
+    if (!data.archivos.length) {
+      elements.sent_listadoArchivos.innerHTML = '<div style="padding: 2rem; text-align: center; color: #7f8c8d;">No hay archivos de resultados CSV</div>';
+      return;
+    }
+    // Igual diseño que transcripciones
+    const html = data.archivos.map(archivo => `
+      <div class="file-item">
+        <div>
+          <div class="file-name">📄 ${archivo.nombre}</div>
+          <div class="file-meta">${formatFileSize(archivo.tamaño)} • ${formatDate(archivo.modificado)}</div>
+        </div>
+        <button class="btn btn-secondary btn-small" onclick="window.downloadSentimiento('${archivo.nombre}')">💾 Descargar</button>
       </div>
-    `;
+    `).join('');
+    elements.sent_listadoArchivos.innerHTML = html;
+  } catch (error) {
+    elements.sent_listadoArchivos.innerHTML = '<div style="padding: 2rem; text-align: center; color: #e74c3c;">❌ Error cargando archivos</div>';
   }
-  elements.sent_resultado.innerHTML = html;
-  elements.sent_resultado.classList.remove('empty');
 }
 
+// --- SENTIMIENTOS: LIMPIAR RESULTADOS ---
+if (elements.sent_btnClear) {
+  elements.sent_btnClear.addEventListener('click', function () {
+    elements.sent_resultado.innerHTML = 'Aquí aparecerán los resultados del análisis de sentimientos...';
+    elements.sent_resultado.classList.add('empty');
+    elements.sent_charts.style.display = 'none';
+    lastSentimientoFile = null;
+    elements.sent_btnExport.style.display = 'none';
+    if (elements.sent_csvFile) elements.sent_csvFile.value = '';
+    const label = document.querySelector('label[for="sent_csvFile"]');
+    if (label) {
+      label.textContent = "📁 Seleccionar archivo CSV";
+      label.classList.remove('has-file');
+    }
+    elements.sent_csvFileInfo.textContent = '';
+  });
+}
+
+// --- MÉTRICAS: SUBIDA Y VISUALIZACIÓN ---
+const eval_csvFile = document.getElementById('eval_csvFile');
+const eval_btnCargarMetrics = document.getElementById('eval_btnCargarMetrics');
+const eval_loaderML = document.getElementById('eval_loaderML');
+const eval_statusML = document.getElementById('eval_statusML');
+const eval_resultadoMetrics = document.getElementById('eval_resultadoMetrics');
+const eval_chartsMetrics = document.getElementById('eval_chartsMetrics');
+const eval_confusionMatrix = document.getElementById('eval_confusionMatrix');
+
+if (eval_btnCargarMetrics) {
+  eval_btnCargarMetrics.addEventListener('click', async function () {
+    const file = eval_csvFile.files[0];
+    if (!file) {
+      alert('Por favor selecciona un archivo CSV de métricas.');
+      return;
+    }
+    eval_btnCargarMetrics.disabled = true;
+    show(eval_loaderML);
+    hide(eval_statusML);
+    eval_resultadoMetrics.innerHTML = '';
+    eval_chartsMetrics.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const response = await fetch('/evaluar_metricas_entrenando', { method: 'POST', body: formData });
+      const data = await response.json();
+      eval_btnCargarMetrics.disabled = false;
+      hide(eval_loaderML);
+
+      if (data.error) {
+        eval_resultadoMetrics.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ ${data.error}</div>`;
+        eval_resultadoMetrics.classList.remove('empty');
+        return;
+      }
+      eval_resultadoMetrics.innerHTML = `
+        <div><strong>Muestras evaluadas:</strong> ${data.n_muestras}</div>
+        <div><strong>Accuracy:</strong> ${data.accuracy}</div>
+        <div><strong>Recall:</strong> ${data.recall}</div>
+        <div><strong>Precision:</strong> ${data.precision}</div>
+        <div><strong>F1-score:</strong> ${data.f1}</div>
+      `;
+      eval_chartsMetrics.style.display = 'block';
+      eval_confusionMatrix.outerHTML = `<img src="data:image/png;base64,${data.grafica_b64}" style="max-width:100%;">`;
+      show(eval_statusML);
+      setTimeout(() => hide(eval_statusML), 3000);
+
+      // Opcional: mostrar tabla de métricas por clase
+      if (data.report) {
+        let html = `<table><thead><tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1</th><th>Soporte</th></tr></thead><tbody>`;
+        ['negativo', 'neutro', 'positivo'].forEach(clase => {
+          const r = data.report[clase] || {};
+          html += `<tr><td>${clase}</td><td>${(r.precision||0).toFixed(3)}</td><td>${(r.recall||0).toFixed(3)}</td><td>${(r['f1-score']||0).toFixed(3)}</td><td>${r.support||0}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        eval_resultadoMetrics.innerHTML += html;
+      }
+    } catch (error) {
+      eval_btnCargarMetrics.disabled = false;
+      hide(eval_loaderML);
+      eval_resultadoMetrics.innerHTML = `<div class="status-indicator error" style="display: flex;">❌ Error de conexión con el servidor</div>`;
+      eval_resultadoMetrics.classList.remove('empty');
+    }
+  });
+}
 // --- INICIALIZACIÓN DEL SISTEMA ---
 document.addEventListener('DOMContentLoaded', function () {
   checkSystemHealth();

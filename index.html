@@ -106,81 +106,96 @@
       </div>
     </div>
 
-    <!-- PESTAÑA 2: ANÁLISIS DE SENTIMIENTOS -->
-    <div class="tab-content" id="tab-sentimientos" style="display:none;">
-      <div class="section">
-        <h2>
-          <span class="section-icon">🧠</span>
-          Análisis de Sentimientos BERT
-        </h2>
-        <div class="file-input-container">
-          <input type="file" id="sent_csvFile" accept=".csv" />
-          <label for="sent_csvFile" class="file-input-label">
-            📁 Seleccionar archivo CSV
-          </label>
-          <div class="file-info" id="sent_csvFileInfo"></div>
-        </div>
-        <div class="audio-controls">
-          <button class="btn btn-primary" id="sent_btnProcesar">
-            🔍 Analizar Sentimientos
-          </button>
-          <button class="btn btn-secondary" id="sent_btnClear">
-            🗑️ Limpiar Resultados
-          </button>
-          <button class="btn btn-secondary" id="sent_btnExport" style="display: none;">
-            💾 Exportar Resultados
-          </button>
-        </div>
-        <div class="status-indicator loading" id="sent_loader">
-          <div class="spinner"></div>
-          Analizando archivos...
-        </div>
-        <div class="status-indicator success" id="sent_status">
-          ✅ Análisis completado
-        </div>
-        <div class="result-container empty" id="sent_resultado">
-          Aquí aparecerán los resultados del análisis de sentimientos...
-        </div>
-        <div class="charts-container" id="sent_charts" style="display:none;">
-          <canvas id="sent_barChart"></canvas>
-          <canvas id="sent_pieChart"></canvas>
-        </div>
-      </div>
+  <!-- PESTAÑA 2: ANÁLISIS DE SENTIMIENTOS -->
+<div class="tab-content" id="tab-sentimientos" style="display:none;">
+  <div class="section">
+    <h2>
+      <span class="section-icon">🧠</span>
+      Análisis de Sentimientos BERT
+    </h2>
+    <div class="file-input-container">
+      <input type="file" id="sent_csvFile" accept=".csv" />
+      <label for="sent_csvFile" class="file-input-label">
+        📁 Seleccionar archivo CSV
+      </label>
+      <div class="file-info" id="sent_csvFileInfo"></div>
     </div>
-
-    <!-- PESTAÑA 3: EVALUACIÓN Y MÉTRICAS ML -->
-    <div class="tab-content" id="tab-evaluacion" style="display:none;">
-      <div class="section">
-        <h2>
-          <span class="section-icon">📊</span>
-          Evaluación y Métricas ML
-        </h2>
-        <div class="audio-controls">
-          <button class="btn btn-primary" id="eval_btnCargarMetrics">
-            📈 Cargar Métricas
-          </button>
-          <button class="btn btn-secondary" id="eval_btnExportMetrics" style="display: none;">
-            💾 Exportar Reporte
-          </button>
-        </div>
-        <div class="status-indicator loading" id="eval_loaderML">
-          <div class="spinner"></div>
-          Calculando métricas...
-        </div>
-        <div class="status-indicator success" id="eval_statusML">
-          ✅ Métricas generadas
-        </div>
-        <div class="result-container empty" id="eval_resultadoMetrics">
-          Aquí aparecerán los resultados de métricas y evaluaciones ML...
-        </div>
-        <div class="charts-container" id="eval_chartsMetrics" style="display:none;">
-          <canvas id="eval_confusionMatrix"></canvas>
-          <canvas id="eval_rocCurve"></canvas>
-          <canvas id="eval_tfidfHeatmap"></canvas>
-        </div>
+    <div class="audio-controls">
+      <button class="btn btn-primary" id="sent_btnProcesar">
+        🔍 Analizar Sentimientos
+      </button>
+      <button class="btn btn-secondary" id="sent_btnClear">
+        🗑️ Limpiar Resultados
+      </button>
+      <button class="btn btn-secondary" id="sent_btnExport" style="display: none;">
+        💾 Exportar Resultados
+      </button>
+      <button class="btn btn-secondary" onclick="listarSentimientos()">
+        📂 Ver Archivos CSV
+      </button>
+    </div>
+    <div class="status-indicator loading" id="sent_loader">
+      <div class="spinner"></div>
+      Analizando archivos...
+    </div>
+    <div class="status-indicator success" id="sent_status">
+      ✅ Análisis completado
+    </div>
+    <div class="result-container empty" id="sent_resultado">
+      Aquí aparecerán los resultados del análisis de sentimientos...
+    </div>
+    <div class="charts-container" id="sent_charts" style="display:none;">
+      <canvas id="sent_barChart"></canvas>
+      <canvas id="sent_pieChart"></canvas>
+    </div>
+  </div>
+  <!-- Sección Archivos (solo en la pestaña sentimientos) -->
+  <div class="section" id="sent_sectionArchivos">
+    <h2>
+      <span class="section-icon">📁</span>
+      Archivos de Resultados CSV
+    </h2>
+    <div class="file-list" id="sent_listadoArchivos">
+      <div style="padding: 2rem; text-align: center; color: #7f8c8d;">
+        Cargando lista de archivos...
       </div>
     </div>
   </div>
+</div>
+    <!-- PESTAÑA 3: EVALUACIÓN Y MÉTRICAS ML -->
+<div class="tab-content" id="tab-evaluacion" style="display:none;">
+  <div class="section">
+    <h2>
+      <span class="section-icon">📊</span>
+      Evaluación y Métricas ML
+    </h2>
+    <div class="file-input-container">
+      <input type="file" id="eval_csvFile" accept=".csv" />
+      <label for="eval_csvFile" class="file-input-label">
+        📁 Seleccionar archivo CSV de métricas
+      </label>
+      <div class="file-info" id="eval_csvFileInfo"></div>
+    </div>
+    <div class="audio-controls">
+      <button class="btn btn-primary" id="eval_btnCargarMetrics">
+        📈 Cargar Métricas
+      </button>
+    </div>
+    <div class="status-indicator loading" id="eval_loaderML">
+      <div class="spinner"></div>
+      Calculando métricas...
+    </div>
+    <div class="status-indicator success" id="eval_statusML">
+      ✅ Métricas generadas
+    </div>
+    <div class="result-container empty" id="eval_resultadoMetrics">
+      Aquí aparecerán los resultados de métricas y evaluaciones ML...
+    </div>
+    <div class="charts-container" id="eval_chartsMetrics" style="display:none;">
+      <canvas id="eval_confusionMatrix"></canvas>
+    </div>
+  </div>
+</div>
   <script src="./static/js/script.js"></script>
   <script>
     // tabs.js básico

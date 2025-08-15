@@ -48,11 +48,13 @@ app = Flask(__name__, static_folder=".", static_url_path="")
 app.config['MAX_CONTENT_LENGTH'] = 45 * 1024 * 1024  # 45MB
 
 # Configuración de directorios
-BASE_DIR = '/home/josfel/Documents/Python/analisisAutomatizado'
+BASE_DIR = '/home/josfel/Documents/Python/flask-whisper-transcription'
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 TRANSCRIPTS_FOLDER = os.path.join(BASE_DIR, 'Transcripts_txt')
 RESULTS_FOLDER = os.path.join(BASE_DIR, 'results')
 TEXTOS_FOLDER = os.path.join(BASE_DIR, 'textos')
+SENTIMENTS_FOLDER = os.path.join(BASE_DIR, 'sentimientos')
+os.makedirs(SENTIMENTS_FOLDER, exist_ok=True)
 JOBS_FOLDER = '/tmp/jobs'
 
 # Rutas de Whisper
@@ -441,6 +443,248 @@ def listar_archivos():
         return jsonify({"archivos": archivos})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+from transformers import pipeline
+from ftfy import fix_text
+import numpy as np
+import io
+
+def limpiar_texto_sentimiento(texto):
+    if pd.isna(texto): return ""
+    return fix_text(str(texto))
+
+def analizar_sentimientos_df(df):
+    classifier = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+    mapeo_polaridad = {
+        "1 star": "negativo",
+        "2 stars": "negativo",
+        "3 stars": "neutro",
+        "4 stars": "positivo",
+        "5 stars": "positivo"
+    }
+    valor_estrellas = {
+        "1 star": 1,
+        "2 stars": 2,
+        "3 stars": 3,
+        "4 stars": 4,
+        "5 stars": 5
+    }
+    def predecir(texto):
+        if pd.isna(texto) or texto.strip() == "":
+            return {"sentimiento": "No disponible", "rank": None}
+        try:
+            resultado = classifier(texto)[0]["label"]
+            return {
+                "sentimiento": mapeo_polaridad.get(resultado, "No disponible"),
+                "rank": valor_estrellas.get(resultado)
+            }
+        except Exception:
+            return {"sentimiento": "Error", "rank": None}
+    # Acceso corregido: usa 'respuesta' en minúsculas
+    df['respuesta'] = df['respuesta'].apply(limpiar_texto_sentimiento)
+    resultados = df['respuesta'].apply(predecir)
+    df['sentimiento_predicho'] = resultados.apply(lambda x: x["sentimiento"])
+    df['rank'] = resultados.apply(lambda x: x["rank"])
+    return df
+
+def graficar_sentimientos_backend(df):
+    # Filtrar para solo positivos/negativos
+    df_viz = df[df['sentimiento_predicho'].isin(['positivo', 'negativo'])]
+    sentimientos = df_viz['sentimiento_predicho'].value_counts()
+    color_map = {'positivo': '#4CAF50', 'negativo': '#F44336'}
+    colors = [color_map.get(s, '#9E9E9E') for s in sentimientos.index]
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    bars = ax1.bar(sentimientos.index, sentimientos.values, color=colors)
+    ax1.set_title('Distribución de Sentimientos (solo positivo/negativo)', fontsize=14)
+    ax1.set_xlabel('Sentimiento')
+    ax1.set_ylabel('Cantidad')
+    for bar in bars:
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height, f'{int(height)}', ha='center', va='bottom')
+    ax2.pie(sentimientos.values, labels=sentimientos.index, autopct='%1.1f%%', colors=colors, startangle=90)
+    ax2.set_title('Proporción', fontsize=14)
+    plt.tight_layout()
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+@app.route("/sentimientos", methods=["POST"])
+def analizar_sentimientos():
+    archivo = request.files.get("file")
+    if not archivo:
+        return jsonify({"error": "No se subió ningún archivo"}), 400
+    try:
+        df = pd.read_csv(archivo, encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv(archivo, encoding='latin-1')
+    # Renombrar columnas a minúsculas sin espacios
+    df.columns = [c.lower().strip() for c in df.columns]
+    if 'opinion' not in df.columns or 'respuesta' not in df.columns:
+        return jsonify({"error": "El CSV debe tener columnas 'Opinion' y 'Respuesta'."}), 400
+    # Procesar sentimientos
+    df = analizar_sentimientos_df(df)
+    # Guardar CSV con timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    resultado_path = os.path.join(SENTIMENTS_FOLDER, f"sentimientos_{timestamp}.csv")
+    df.to_csv(resultado_path, index=False, encoding='utf-8-sig')
+    # Graficar y enviar imagen
+    buf = graficar_sentimientos_backend(df)
+    import base64
+    img_b64 = base64.b64encode(buf.getvalue()).decode()
+    return jsonify({
+        "archivo_guardado": resultado_path,
+        "grafica_b64": img_b64,
+        "filas": len(df),
+        "positivos": int((df['sentimiento_predicho'] == 'positivo').sum()),
+        "negativos": int((df['sentimiento_predicho'] == 'negativo').sum()),
+        "neutros": int((df['sentimiento_predicho'] == 'neutro').sum())
+    })
+
+@app.route("/descargar_sentimiento/<filename>")
+def descargar_sentimiento(filename):
+    file_path = os.path.join(SENTIMENTS_FOLDER, filename)
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    return jsonify({"error": "Archivo no encontrado"}), 404
+
+@app.route("/listar_sentimientos")
+def listar_sentimientos():
+    archivos = []
+    if os.path.exists(SENTIMENTS_FOLDER):
+        for filename in sorted(os.listdir(SENTIMENTS_FOLDER)):
+            if filename.endswith('.csv'):
+                file_path = os.path.join(SENTIMENTS_FOLDER, filename)
+                stat = os.stat(file_path)
+                archivos.append({
+                    "nombre": filename,
+                    "tamaño": stat.st_size,
+                    "modificado": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+    return jsonify({"archivos": archivos})
+# --- NUEVO BLOQUE: MÉTRICAS Y EVALUACIÓN ---
+import pandas as pd
+import numpy as np
+import re
+import spacy
+import nltk
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, recall_score, precision_score, classification_report, confusion_matrix
+from flask import Flask, request, jsonify
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import seaborn as sns
+import io
+import base64
+
+# Cargar recursos NLP
+nlp = spacy.load('es_core_news_sm')
+nltk.download('stopwords')
+stop_words = set(stopwords.words('spanish'))
+
+def limpiar_texto_avanzado(texto):
+    if not texto or pd.isna(texto):
+        return ""
+    texto = str(texto).lower()
+    texto = re.sub(r'https?://\S+|www\.\S+|\S+@\S+', '', texto)
+    texto = re.sub(r'[^\w\s!?¡¿]', ' ', texto)
+    texto = re.sub(r'\d+', '', texto)
+    texto = re.sub(r'\s+', ' ', texto).strip()
+    doc = nlp(texto)
+    palabras_importantes = {'no', 'ni', 'nunca', 'tampoco', 'nada', 'sin', 'pero'}
+    tokens = [token.lemma_ for token in doc if (token.text not in stop_words or token.text in palabras_importantes) and not token.is_space]
+    return ' '.join(tokens)
+
+def extraer_pos_tags(texto):
+    if not texto or pd.isna(texto) or len(texto.strip()) == 0:
+        return ""
+    try:
+        doc = nlp(texto)
+        pos_tags = [f"{token.text}_{token.pos_}" for token in doc]
+        return ' '.join(pos_tags)
+    except Exception as e:
+        return ""
+
+@app.route('/evaluar_metricas_entrenando', methods=['POST'])
+def evaluar_metricas_entrenando():
+    archivo = request.files.get('file')
+    if not archivo:
+        return jsonify({'error': 'No se subió ningún archivo'}), 400
+    try:
+        df = pd.read_csv(archivo, encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv(archivo, encoding='latin-1')
+    df.columns = [c.lower().strip() for c in df.columns]
+    if 'respuesta' not in df.columns or 'sentimiento_predicho' not in df.columns:
+        return jsonify({'error': "El CSV debe tener columnas 'respuesta' y 'sentimiento_predicho'."}), 400
+
+    # Limpiar texto y extraer POS
+    df['texto_limpio'] = df['respuesta'].apply(limpiar_texto_avanzado)
+    df['pos_tags'] = df['texto_limpio'].apply(extraer_pos_tags)
+
+    # Vectorizador TF-IDF texto y POS
+    tfidf_texto = TfidfVectorizer(max_features=500, min_df=2, max_df=0.9, ngram_range=(1,2), sublinear_tf=True, use_idf=True, norm='l2')
+    tfidf_pos = TfidfVectorizer(max_features=300, ngram_range=(1,2), min_df=1, sublinear_tf=True)
+    texto_features = tfidf_texto.fit_transform(df['texto_limpio'])
+    pos_features = tfidf_pos.fit_transform(df['pos_tags'])
+    X = np.hstack([texto_features.toarray(), pos_features.toarray()])
+
+    # Mapear sentimiento
+    mapping = {'negativo': 1, 'neutro': 2, 'positivo': 3}
+    y = df['sentimiento_predicho'].astype(str).str.strip().str.lower().map(mapping)
+    mask = ~y.isna()
+    X = X[mask]
+    y = y[mask].astype(int)
+    if len(y) == 0:
+        return jsonify({'error': 'No hay datos válidos para entrenar/comparar.'}), 400
+
+    # Entrenamiento y validación simple
+    from sklearn.model_selection import train_test_split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+
+    modelo = LogisticRegression(class_weight='balanced', solver='liblinear', max_iter=5000)
+    modelo.fit(X_train, y_train)
+    y_pred = modelo.predict(X_test)
+
+    # Métricas
+    acc = accuracy_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred, average='macro')
+    precision = precision_score(y_test, y_pred, average='macro')
+    f1 = f1_score(y_test, y_pred, average='macro')
+    report = classification_report(y_test, y_pred, target_names=['negativo', 'neutro', 'positivo'], output_dict=True)
+    cm = confusion_matrix(y_test, y_pred, labels=[1,2,3])
+
+    # Graficar matriz de confusión
+    plt.figure(figsize=(7, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='viridis', xticklabels=['negativo', 'neutro', 'positivo'], yticklabels=['negativo', 'neutro', 'positivo'])
+    plt.xlabel('Predicción')
+    plt.ylabel('Verdadero')
+    plt.title('Matriz de Confusión')
+    buf = io.BytesIO()
+    plt.tight_layout()
+    plt.savefig(buf, format='png')
+    plt.close()
+    buf.seek(0)
+    img_b64 = base64.b64encode(buf.getvalue()).decode()
+
+    return jsonify({
+        'matriz_confusion': cm.tolist(),
+        'grafica_b64': img_b64,
+        'accuracy': round(acc, 4),
+        'recall': round(recall, 4),
+        'precision': round(precision, 4),
+        'f1': round(f1, 4),
+        'report': report,
+        'n_muestras': int(len(y_test))
+    })
 
 if __name__ == "__main__":
     logger.info("Iniciando servidor Flask...")
