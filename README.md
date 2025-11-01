@@ -9,9 +9,8 @@ An end-to-end web application that transcribes audio files and performs sentimen
 This tool allows users to upload audio files, receive a high-accuracy transcription, and instantly get an analysis of the text's sentiment (positive, negative, neutral), all within a simple web interface.
 
 ## 📸 Project Demo
-*(Here, you should add a screenshot or a quick GIF of your application in action. This is very important!)*
+![Project Screenshot] (/img/demo1.png)
 
-![Project Screenshot](link_to_your_screenshot.png)
 
 ---
 
