@@ -40,7 +40,7 @@ Follow these steps to get the project running on your local machine.
 
 * [Python 3.9+](https://www.python.org/downloads/)
 * [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) installed and compiled on your system.
-    * *(You should add a note here on how you compiled it or link to its instructions)*
+   
 * A pre-trained Whisper model (e.g., `ggml-base.en.bin`)
 
 ### 1. Clone the Repository
