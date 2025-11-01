@@ -1,1 +1,0 @@
-Mis avances de la semana 2, se diseñó la arquitectura en el sensor MPU 908.
